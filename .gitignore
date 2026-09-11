@@ -1,0 +1,4 @@
+dist/
+testgame/
+*.log
+__pycache__/

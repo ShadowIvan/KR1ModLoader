@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install lupa (LuaJIT 2.0 for loader tests)
+        run: pip install lupa
+      - name: Unit tests (fused-zip writer + loader logic)
+        run: python -X utf8 -m unittest discover -s tests -v
+      - name: Lua syntax check (LuaJIT 2.0)
+        run: python -X utf8 tools/check_syntax.py bootstrap examples
+      - name: Build setup exe (compiles, no signing)
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/build_setup.ps1
+      - name: Build script installer zip
+        run: python -X utf8 tools/modloader.py release

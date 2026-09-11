@@ -1,0 +1,9 @@
+{
+  "id": "hello",
+  "name": "Hello Mod",
+  "version": "0.1.0",
+  "description": "Example mod for KR1ModLoader: writes to the log and ships one extra module.",
+  "priority": 50,
+  "entry": "init.lua",
+  "stage": "boot"
+}

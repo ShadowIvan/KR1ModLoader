@@ -1,0 +1,55 @@
+name: Release
+
+# A vX.Y.Z tag (matching VERSION.txt) -> GitHub Release with three install methods:
+#   KR1ModLoader-Setup-X.Y.Z.zip   -- install.bat + PowerShell + Lua, no binaries
+#   KR1ModLoader-Setup-X.Y.Z.exe   -- GUI installer (unsigned unless signing secrets are set)
+#   source code              -- py tools/modloader.py install (GitHub attaches the archive itself)
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check tag matches VERSION.txt
+        shell: pwsh
+        run: |
+          $v = (Get-Content VERSION.txt -Raw).Trim()
+          if ("v$v" -ne "${{ github.ref_name }}") { throw "VERSION.txt=$v, tag=${{ github.ref_name }}" }
+      - run: pip install lupa
+      - run: python -X utf8 -m unittest discover -s tests -v
+      - run: python -X utf8 tools/check_syntax.py bootstrap examples
+      - name: Script installer (zip)
+        run: python -X utf8 tools/modloader.py release
+      - name: GUI installer (exe)
+        shell: pwsh
+        env:
+          KR1ML_CERT_FILE: ${{ secrets.KR1ML_CERT_FILE && 'cert.pfx' || '' }}
+          KR1ML_CERT_PASSWORD: ${{ secrets.KR1ML_CERT_PASSWORD }}
+        run: |
+          if ("${{ secrets.KR1ML_CERT_FILE }}" -ne "") {
+            [IO.File]::WriteAllBytes("cert.pfx", [Convert]::FromBase64String("${{ secrets.KR1ML_CERT_FILE }}"))
+          }
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/build_setup.ps1
+          if (Test-Path cert.pfx) { Remove-Item cert.pfx }
+      - name: Checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem dist -File | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
+          } | Set-Content dist/SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/KR1ModLoader-Setup-*.zip
+            dist/KR1ModLoader-Setup-*.exe
+            dist/SHA256SUMS.txt
+          body_path: .github/RELEASE_NOTES.md
